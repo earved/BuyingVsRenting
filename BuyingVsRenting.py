@@ -98,15 +98,15 @@ def main_calculator(dates, Parameters, Constants):
         portfolio_value_vec[step]= portfolio_value_vec[step]+etf_interest_vec[step]-interest_gains_tax_vec[step]-housemaintenance_vec[step] # correction of portfolie value after interests and taxes
 
         # special repayments of loan at the end of each year if possible
-        if date.month == 12 and portfolio_value_vec[step]>Parameters["emergency_fund"]+Parameters["special_repayment"] and debt_vec[step]>(Parameters["special_repayment"]+repayment_vec[step]):
-            special_repayment_vec[step] = Parameters["special_repayment"]
-            portfolio_value_vec[step] = portfolio_value_vec[step] - Parameters["special_repayment"]
-            debt_next_step = max(debt_vec[step] - repayment_vec[step] - Parameters["special_repayment"], 0)
+        if date.month == 12 and portfolio_value_vec[step]>0 and debt_vec[step]>repayment_vec[step]:
+            special_repayment_vec[step] = min(Parameters["special_repayment"],portfolio_value_vec[step],debt_vec[step]-repayment_vec[step])
+            portfolio_value_vec[step] = portfolio_value_vec[step] - special_repayment_vec[step] 
+            debt_next_step = debt_vec[step] - repayment_vec[step] - special_repayment_vec[step]
         else:
             # update debt of next cycle
             if debt_vec[step] - repayment_vec[step] > 0:
                 debt_next_step = debt_vec[step] - repayment_vec[step]
-            elif debt_vec[step]>0: 
+            elif debt_vec[step]>0 and (debt_vec[step] - repayment_vec[step]) < 0 : 
                 portfolio_value_vec[step] = portfolio_value_vec[step] + repayment_vec[step] - debt_vec[step]
                 repayment_vec[step] = debt_vec[step]
                 debt_next_step = 0
@@ -145,7 +145,7 @@ def main_calculator(dates, Parameters, Constants):
         "etf_interest_vec": etf_interest_vec
     }, index=dates)
 
-    #print(sum(repayment_vec)+sum(special_repayment_vec)) equals initial debt
+    #print(round(sum(repayment_vec)+sum(special_repayment_vec))) #should equal initial debt
 
     key_values = { #unit k€
         "house_purchase_additional_costs" : Constants["house_purchase_additional_costs_rate"]*Parameters["house_price"]/1000,
@@ -200,6 +200,7 @@ def calc_and_plot_scenario():
     # ouput calculations of buying scenario
     labeltext = "Eigenkapitalquote: " + str(round(100*Parameters["start_capital"]/(Parameters["house_price"]*(1+Constants["house_purchase_additional_costs_rate"])),1)) +" %"
     labeltext = labeltext + "\n" + "Anfängliche Tilgung: "+ str(round(df_buy["repayment_vec"].iloc[0]/df_buy["debt_vec"].iloc[0]*12*100,2)) + " %"
+    labeltext = labeltext + "\n" + "Kaufpreisfaktor: " + str(round(Parameters["house_price"]/(Parameters["rent"]*12),1))
     labeltext = labeltext + "\n" + " "
     labeltext = labeltext + "\n" + "Bilanz:"
     labeltext = labeltext + "\n" + "+ Startkapital: " + str(round(Parameters["start_capital"]/1000))  + " k€"
@@ -283,7 +284,7 @@ def calc_and_plot_scenario():
     ax2.plot(df_buy.index, df_buy["loan_rate_vec"], label="Annuität")
     ax2.plot(df_buy.index, df_buy["net_income_vec"], label="Netto Einkommen")
     ax2.plot(df_buy.index, df_buy["special_repayment_vec"], label="Sondertilgung", linestyle = 'dotted')
-    ax2.plot(df_buy.index, df_buy["housemaintenance_vec"], label="Instandhaltung & Grundsteuer")
+    ax2.plot(df_buy.index, df_buy["housemaintenance_vec"], label="Instandhaltung &\nGrundsteuer")
     ax2.plot(df_buy.index, df_buy["interest_gains_tax_vec"], label="Kap. Ertragssteuer (Kaufen)")
     ax2.plot(df_buy.index, df_buy["expenses_vec"], label="Ausgaben")
     ax2.plot(df_rent.index, df_rent["rent_vec"], label="Miete")
@@ -325,7 +326,7 @@ def get_defaults():
         "etf_interest" : 5,
         "etf_interest_retirement" : 2, # smaller interest due to more conservative investment during retirement
         "housemaintenance_rate" : 0.8, # % of house value per year
-        "special_repayment" : 7500, #€
+        "special_repayment" : 10000, #€
         "rent" : 1400, #€
         "rent_increase_rate": 2, # % increase per year
         }
@@ -334,7 +335,7 @@ def get_defaults():
                            "Hauswertsteigerung p.a. [%]","Notgroschen [k€]","Monatlichs Netto [€]","Rente [€]",'Monatliche Ausgaben [€]', \
                            "Gehaltssteigerung p.a. [%]","Ausgabensteigerung (Inflation) p.a. [%]","Annuität [€]","Kreditzins p.a. [%]", \
                           "Kreditzins p.a. +15J [%]", "ETF Zins p.a. [%]","ETF Zins p.a. Rente [%]","Instandhaltung & Grundsteuer \np.a. [% vom Kaufpreis]",\
-                            "Sondertilgung [€]", "Kaltmiete [€]","Mietsteigerung (Inflation) p.a. [%]"]
+                            "max. Sondertilgung p.a. [€]", "Kaltmiete [€]","Mietsteigerung (Inflation) p.a. [%]"]
                               
     Constants = {
         "YearlyTaxFreeInterests" : 2000, #€
@@ -360,7 +361,7 @@ input_frame = ttk.Frame(root, padding=10)
 input_frame.grid(row=0, column=0, sticky="NSEW")
 
 # calc button
-calc_button = ttk.Button(input_frame, text="Berechne Scenario", command=calc_and_plot_scenario, bootstyle="primary")
+calc_button = ttk.Button(input_frame, text="Berechne Szenario", command=calc_and_plot_scenario, bootstyle="primary")
 calc_button.grid(row=0, column=1, columnspan=2, sticky="NSEW", pady = 5)
 
 # Create a progress bar 
